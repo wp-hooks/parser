@@ -1,6 +1,6 @@
 {
 	"name"       : "johnbillion/wp-parser-lib",
-	"description": "Static code parser for WordPress source.",
+	"description": "File scanning and hook parsing functionality from WP Parser.",
 	"keywords"   : ["wordpress"],
 	"homepage"   : "https://github.com/johnbillion/wp-parser-lib",
 	"license"    : "GPL-2.0-or-later",

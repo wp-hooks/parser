@@ -1,33 +1,24 @@
-# WP Parser
+# WP Parser Lib
 
-WP-Parser is the parser for creating the new code reference at [developer.wordpress.org](https://developer.wordpress.org/reference). It parses the inline documentation and produces custom post type entries in WordPress.
+This package contains the file scanning and hook parsing functionality from [WP Parser](https://github.com/WordPress/phpdoc-parser).
 
-We are currently looking for contributors to help us complete the work on the parser.
-
-There is a guide to developing for developer.wordpress.org in the [WordPress documentation handbook](https://make.wordpress.org/docs/handbook/projects/devhub/)
+I did not write this code. I just abstracted it so it can be used independently of the WP Parser WordPress plugin.
 
 ## Requirements
 * PHP 5.4+
 * [Composer](https://getcomposer.org/)
-* [WP CLI](https://wp-cli.org/)
 
-Clone the repository into your WordPress plugins directory:
-
-```bash
-git clone https://github.com/WordPress/phpdoc-parser.git
-```
-
-After that install the dependencies using composer in the parser directory:
+## Installation
 
 ```bash
-composer install
+composer require johnbillion/wp-parser-lib
 ```
 
-## Running
-Activate the plugin first:
+## Usage
 
-    wp plugin activate phpdoc-parser
+```php
+$files  = \WP_Parser\get_wp_files( $path );
+$output = \WP_Parser\parse_files( $files, $path );
+```
 
-In your site's directory:
-
-    wp parser create /path/to/source/code --user=<id|login>
+See [wp-hooks-generator](https://github.com/johnbillion/wp-hooks-generator/) as a full usage example.
