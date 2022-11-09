@@ -21,4 +21,4 @@ $files  = \WP_Parser\get_wp_files( $path );
 $output = \WP_Parser\parse_files( $files, $path );
 ```
 
-See [wp-hooks-generator](https://github.com/johnbillion/wp-hooks-generator/) as a full usage example.
+See [wp-hooks/generator](https://github.com/wp-hooks/generator) as a full usage example.
