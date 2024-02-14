@@ -5,7 +5,7 @@ This package contains the file scanning and hook parsing functionality from [WP 
 I did not write this code. I just abstracted it so it can be used independently of the WP Parser WordPress plugin.
 
 ## Requirements
-* PHP 5.4+
+* PHP 8.2+
 * [Composer](https://getcomposer.org/)
 
 ## Installation

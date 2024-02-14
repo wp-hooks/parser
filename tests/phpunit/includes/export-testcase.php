@@ -6,10 +6,12 @@
 
 namespace WP_Parser\Tests;
 
+use Yoast\PHPUnitPolyfills\TestCases\TestCase as Polyfill_TestCase;
+
 /**
  * Parent test case for data export tests.
  */
-class Export_UnitTestCase extends \WP_UnitTestCase {
+class Export_UnitTestCase extends Polyfill_TestCase {
 
 	/**
 	 * The exported data.
@@ -24,9 +26,9 @@ class Export_UnitTestCase extends \WP_UnitTestCase {
 	protected function parse_file() {
 
 		$class_reflector = new \ReflectionClass( $this );
-		$file = $class_reflector->getFileName();
-		$file = rtrim( $file, 'php' ) . 'inc';
-		$path = dirname( $file );
+		$file            = $class_reflector->getFileName();
+		$file            = rtrim( $file, 'php' ) . 'inc';
+		$path            = dirname( $file );
 
 		$export_data = \WP_Parser\parse_files( array( $file ), $path );
 
@@ -36,7 +38,7 @@ class Export_UnitTestCase extends \WP_UnitTestCase {
 	/**
 	 * Parse the file to get the exported data before the first test.
 	 */
-	public function setUp() {
+	public function setUp(): void {
 
 		parent::setUp();
 
@@ -52,8 +54,7 @@ class Export_UnitTestCase extends \WP_UnitTestCase {
 	 * @param string $type     The type of thing that this entity should contain.
 	 * @param array  $expected The expected data for the thing the entity should contain.
 	 */
-	protected function assertEntityContains( $entity, $type, $expected ) {
-
+	protected function assertEntityContains( array $entity, $type, $expected ) {
 		$this->assertArrayHasKey( $type, $entity );
 
 		foreach ( $entity[ $type ] as $exported ) {
@@ -123,12 +124,12 @@ class Export_UnitTestCase extends \WP_UnitTestCase {
 	protected function assertFunctionUses( $type, $function_name, $entity ) {
 
 		$function_data = $this->find_entity_data_in(
-			$this->export_data
-			, 'functions'
-			, $function_name
+			$this->export_data,
+			'functions',
+			$function_name
 		);
 
-		$this->assertInternalType( 'array', $function_data );
+		$this->assertIsArray( $function_data );
 		$this->assertEntityUses( $function_data, $type, $entity );
 	}
 
@@ -142,12 +143,12 @@ class Export_UnitTestCase extends \WP_UnitTestCase {
 	protected function assertFunctionNotUses( $type, $function_name, $entity ) {
 
 		$function_data = $this->find_entity_data_in(
-			$this->export_data
-			, 'functions'
-			, $function_name
+			$this->export_data,
+			'functions',
+			$function_name
 		);
 
-		$this->assertInternalType( 'array', $function_data );
+		$this->assertIsArray( $function_data );
 		$this->assertEntityNotUses( $function_data, $type, $entity );
 	}
 
@@ -162,20 +163,20 @@ class Export_UnitTestCase extends \WP_UnitTestCase {
 	protected function assertMethodUses( $type, $class_name, $method_name, $entity ) {
 
 		$class_data = $this->find_entity_data_in(
-			$this->export_data
-			, 'classes'
-			, $class_name
+			$this->export_data,
+			'classes',
+			$class_name
 		);
 
-		$this->assertInternalType( 'array', $class_data );
+		$this->assertIsArray( $class_data );
 
 		$method_data = $this->find_entity_data_in(
-			$class_data
-			, 'methods'
-			, $method_name
+			$class_data,
+			'methods',
+			$method_name
 		);
 
-		$this->assertInternalType( 'array', $method_data );
+		$this->assertIsArray( $method_data );
 		$this->assertEntityUses( $method_data, $type, $entity );
 	}
 
@@ -190,20 +191,20 @@ class Export_UnitTestCase extends \WP_UnitTestCase {
 	protected function assertMethodNotUses( $type, $class_name, $method_name, $entity ) {
 
 		$class_data = $this->find_entity_data_in(
-			$this->export_data
-			, 'classes'
-			, $class_name
+			$this->export_data,
+			'classes',
+			$class_name
 		);
 
-		$this->assertInternalType( 'array', $class_data );
+		$this->assertIsArray( $class_data );
 
 		$method_data = $this->find_entity_data_in(
-			$class_data
-			, 'methods'
-			, $method_name
+			$class_data,
+			'methods',
+			$method_name
 		);
 
-		$this->assertInternalType( 'array', $method_data );
+		$this->assertIsArray( $method_data );
 		$this->assertEntityNotUses( $method_data, $type, $entity );
 	}
 
@@ -399,7 +400,7 @@ class Export_UnitTestCase extends \WP_UnitTestCase {
 	protected function assertMethodHasDocs( $class, $method, $docs ) {
 
 		$class = $this->find_entity_data_in( $this->export_data, 'classes', $class );
-		$this->assertInternalType( 'array', $class );
+		$this->assertIsArray( $class );
 
 		$method = $this->find_entity_data_in( $class, 'methods', $method );
 		$this->assertEntityHasDocs( $method, $docs );
@@ -415,7 +416,7 @@ class Export_UnitTestCase extends \WP_UnitTestCase {
 	protected function assertPropertyHasDocs( $class, $property, $docs ) {
 
 		$class = $this->find_entity_data_in( $this->export_data, 'classes', $class );
-		$this->assertInternalType( 'array', $class );
+		$this->assertIsArray( $class );
 
 		$property = $this->find_entity_data_in( $class, 'properties', $property );
 		$this->assertEntityHasDocs( $property, $docs );
