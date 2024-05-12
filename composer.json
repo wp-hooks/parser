@@ -1,8 +1,8 @@
 {
-	"name"       : "johnbillion/wp-parser-lib",
+	"name"       : "wp-hooks/parser",
 	"description": "File scanning and hook parsing functionality from WP Parser.",
 	"keywords"   : ["wordpress"],
-	"homepage"   : "https://github.com/johnbillion/wp-parser-lib",
+	"homepage"   : "https://github.com/wp-hooks/parser",
 	"type"       : "library",
 	"license"    : "GPL-3.0-or-later",
 	"authors"    : [
@@ -18,11 +18,11 @@
 		},
 		{
 			"name"    : "Contributors",
-			"homepage": "https://github.com/johnbillion/wp-parser-lib/graphs/contributors"
+			"homepage": "https://github.com/wp-hooks/parser/graphs/contributors"
 		}
 	],
 	"support"    : {
-		"issues": "https://github.com/johnbillion/wp-parser-lib/issues"
+		"issues": "https://github.com/wp-hooks/parser/issues"
 	},
 	"require"    : {
 		"php"                      : ">=8.2",

@@ -11,7 +11,7 @@ I did not write this code. I just abstracted it so it can be used independently 
 ## Installation
 
 ```bash
-composer require johnbillion/wp-parser-lib
+composer require wp-hooks/parser
 ```
 
 ## Usage
