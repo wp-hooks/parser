@@ -2,136 +2,12 @@
 
 namespace WP_Parser;
 
-use phpDocumentor\Reflection\BaseReflector;
-use phpDocumentor\Reflection\ClassReflector\MethodReflector;
-use phpDocumentor\Reflection\ClassReflector\PropertyReflector;
-use phpDocumentor\Reflection\FunctionReflector;
-use phpDocumentor\Reflection\FunctionReflector\ArgumentReflector;
-use phpDocumentor\Reflection\ReflectionAbstract;
+use WP_Parser\Factory\Hook_ as HookStrategy;
+use WP_Parser\HooksMetadata;
 
-/**
- * @param string $directory
- *
- * @return array|\WP_Error
- */
-function get_wp_files( $directory ) {
-	$iterableFiles = new \RecursiveIteratorIterator(
-		new \RecursiveDirectoryIterator( $directory )
-	);
-	$files         = array();
-
-	try {
-		foreach ( $iterableFiles as $file ) {
-			if ( 'php' !== $file->getExtension() ) {
-				continue;
-			}
-
-			$files[] = $file->getPathname();
-		}
-	} catch ( \UnexpectedValueException $exc ) {
-		return new \WP_Error(
-			'unexpected_value_exception',
-			sprintf( 'Directory [%s] contained a directory we can not recurse into', $directory )
-		);
-	}
-
-	return $files;
-}
-
-/**
- * @param array  $files
- * @param string $root
- *
- * @return array
- */
-function parse_files( $files, $root ) {
-	$output = array();
-
-	foreach ( $files as $filename ) {
-		$file = new File_Reflector( $filename );
-
-		$path = ltrim( substr( $filename, strlen( $root ) ), DIRECTORY_SEPARATOR );
-		$file->setFilename( $path );
-
-		$file->process();
-
-		// TODO proper exporter
-		$out = array(
-			'file' => export_docblock( $file ),
-			'path' => str_replace( DIRECTORY_SEPARATOR, '/', $file->getFilename() ),
-			'root' => $root,
-		);
-
-		if ( ! empty( $file->uses ) ) {
-			$out['uses'] = export_uses( $file->uses );
-		}
-
-		foreach ( $file->getIncludes() as $include ) {
-			$out['includes'][] = array(
-				'name' => $include->getName(),
-				'line' => $include->getLineNumber(),
-				'type' => $include->getType(),
-			);
-		}
-
-		foreach ( $file->getConstants() as $constant ) {
-			$out['constants'][] = array(
-				'name'  => $constant->getShortName(),
-				'line'  => $constant->getLineNumber(),
-				'value' => $constant->getValue(),
-			);
-		}
-
-		if ( ! empty( $file->uses['hooks'] ) ) {
-			$out['hooks'] = export_hooks( $file->uses['hooks'] );
-		}
-
-		foreach ( $file->getFunctions() as $function ) {
-			$func = array(
-				'name'      => $function->getShortName(),
-				'namespace' => $function->getNamespace(),
-				'aliases'   => $function->getNamespaceAliases(),
-				'line'      => $function->getLineNumber(),
-				'end_line'  => $function->getNode()->getAttribute( 'endLine' ),
-				'arguments' => export_arguments( $function->getArguments() ),
-				'doc'       => export_docblock( $function ),
-				'hooks'     => array(),
-			);
-
-			if ( ! empty( $function->uses ) ) {
-				$func['uses'] = export_uses( $function->uses );
-
-				if ( ! empty( $function->uses['hooks'] ) ) {
-					$func['hooks'] = export_hooks( $function->uses['hooks'] );
-				}
-			}
-
-			$out['functions'][] = $func;
-		}
-
-		foreach ( $file->getClasses() as $class ) {
-			$class_data = array(
-				'name'       => $class->getShortName(),
-				'namespace'  => $class->getNamespace(),
-				'line'       => $class->getLineNumber(),
-				'end_line'   => $class->getNode()->getAttribute( 'endLine' ),
-				'final'      => $class->isFinal(),
-				'abstract'   => $class->isAbstract(),
-				'extends'    => $class->getParentClass(),
-				'implements' => $class->getInterfaces(),
-				'properties' => export_properties( $class->getProperties() ),
-				'methods'    => export_methods( $class->getMethods() ),
-				'doc'        => export_docblock( $class ),
-			);
-
-			$out['classes'][] = $class_data;
-		}
-
-		$output[] = $out;
-	}
-
-	return $output;
-}
+use phpDocumentor\Reflection\DocBlockFactory;
+use phpDocumentor\Reflection\File\LocalFile;
+use phpDocumentor\Reflection\Php\ProjectFactory;
 
 /**
  * Fixes newline handling in parsed text.
@@ -154,7 +30,7 @@ function fix_newlines( $text ) {
 
 	// Replace newline characters within 'code' and 'pre' tags with replacement string.
 	$text = preg_replace_callback(
-		"/(?<=<pre><code>)(.+)(?=<\/code><\/pre>)/s",
+		'/(?<=<pre><code>)(.+)(?=<\/code><\/pre>)/s',
 		function ( $matches ) use ( $replacement_string ) {
 			return preg_replace( '/[\n\r]/', $replacement_string, $matches[1] );
 		},
@@ -175,7 +51,21 @@ function fix_newlines( $text ) {
 }
 
 /**
- * @param BaseReflector|ReflectionAbstract $element
+ * Extracts the namespace from a Fqsen
+ *
+ * @param \phpDocumentor\Reflection\Fqsen fqsen
+ *
+ * @return string
+ */
+function get_namespace( $fqsen ) {
+	$parts = explode( '\\', ltrim( (string) $fqsen, '\\' ) );
+	array_pop( $parts );
+
+	return implode( '\\', $parts );
+}
+
+/**
+ * @param $element
  *
  * @return array
  */
@@ -190,24 +80,38 @@ function export_docblock( $element ) {
 	}
 
 	$output = array(
-		'description'      => preg_replace( '/[\n\r]+/', ' ', $docblock->getShortDescription() ),
-		'long_description' => fix_newlines( $docblock->getLongDescription()->getFormattedContents() ),
+		'description'      => preg_replace( '/[\n\r]+/', ' ', $docblock->getSummary() ),
+		'long_description' => fix_newlines( $docblock->getDescription() ),
 		'tags'             => array(),
 	);
 
 	foreach ( $docblock->getTags() as $tag ) {
 		$tag_data = array(
-			'name'    => $tag->getName(),
-			'content' => preg_replace( '/[\n\r]+/', ' ', format_description( $tag->getDescription() ) ),
+			'name' => $tag->getName(),
 		);
-		if ( method_exists( $tag, 'getTypes' ) ) {
-			$tag_data['types'] = $tag->getTypes();
+
+		if ( method_exists( $tag, 'getDescription' ) ) {
+			$tag_data['content'] = preg_replace( '/[\n\r]+/', ' ', $tag->getDescription() );
 		}
+
+		if ( method_exists( $tag, 'getType' ) ) {
+			$tag_type = $tag->getType();
+
+			if ( ! $tag_type instanceof \phpDocumentor\Reflection\Types\AggregatedType ) {
+				$tag_data['types'] = array( (string) $tag_type );
+			} else {
+				foreach ( $tag_type->getIterator() as $index => $type ) {
+					$tag_data['types'][] = (string) $type;
+				}
+			}
+		}
+
 		if ( method_exists( $tag, 'getLink' ) ) {
 			$tag_data['link'] = $tag->getLink();
 		}
 		if ( method_exists( $tag, 'getVariableName' ) ) {
-			$tag_data['variable'] = $tag->getVariableName();
+			$variable             = $tag->getVariableName();
+			$tag_data['variable'] = $variable ? '$' . $variable : '';
 		}
 		if ( method_exists( $tag, 'getReference' ) ) {
 			$tag_data['refers'] = $tag->getReference();
@@ -220,12 +124,13 @@ function export_docblock( $element ) {
 			}
 			// Description string.
 			if ( method_exists( $tag, 'getDescription' ) ) {
-				$description = preg_replace( '/[\n\r]+/', ' ', format_description( $tag->getDescription() ) );
+				$description = preg_replace( '/[\n\r]+/', ' ', $tag->getDescription() );
 				if ( ! empty( $description ) ) {
 					$tag_data['description'] = $description;
 				}
 			}
 		}
+
 		$output['tags'][] = $tag_data;
 	}
 
@@ -233,18 +138,92 @@ function export_docblock( $element ) {
 }
 
 /**
- * @param Hook_Reflector[] $hooks
+ * @param \phpDocumentor\Reflection\Php\Argument[] $arguments
  *
  * @return array
  */
-function export_hooks( array $hooks ) {
+function export_arguments( array $arguments ) {
+	$output = array();
+
+	foreach ( $arguments as $argument ) {
+		$output[] = array(
+			'name'    => '$' . $argument->getName(),
+			'default' => $argument->getDefault(),
+			'type'    => (string) $argument->getType(),
+		);
+	}
+
+	return $output;
+}
+
+/**
+ * @param \phpDocumentor\Reflection\Php\Property[] $properties
+ *
+ * @return array
+ */
+function export_properties( array $properties ) {
 	$out = array();
 
-	foreach ( $hooks as $hook ) {
+	foreach ( $properties as $property ) {
+		$out[] = array(
+			'name'       => '$' . $property->getName(),
+			'line'       => $property->getLocation()->getLineNumber(),
+			'end_line'   => $property->getEndLocation()->getLineNumber(),
+			'default'    => $property->getDefault(),
+			'static'     => $property->isStatic(),
+			'visibility' => (string) $property->getVisibility(),
+			'doc'        => export_docblock( $property ),
+		);
+	}
+
+	return $out;
+}
+
+/**
+ * @param \phpDocumentor\Reflection\Php\Method[] $methods
+ *
+ * @return array
+ */
+function export_methods( array $methods ) {
+	$output = array();
+
+	foreach ( $methods as $method ) {
+
+		$namespace = get_namespace( $method->getFqsen() );
+
+		$method_data = array(
+			'name'       => $method->getName(),
+			'namespace'  => $namespace ? $namespace : '',
+			'line'       => $method->getLocation()->getLineNumber(),
+			'end_line'   => $method->getEndLocation()->getLineNumber(),
+			'final'      => $method->isFinal(),
+			'abstract'   => $method->isAbstract(),
+			'static'     => $method->isStatic(),
+			'visibility' => (string) $method->getVisibility(),
+			'arguments'  => export_arguments( $method->getArguments() ),
+			'doc'        => export_docblock( $method ),
+		);
+
+		$output[] = $method_data;
+	}
+
+	return $output;
+}
+
+/**
+ * @param HooksMetadata $hooks_metadata
+ *
+ * @return array
+ */
+function export_hooks( HooksMetadata $hooks_metadata ) {
+	$out = array();
+
+	foreach ( $hooks_metadata as $hook ) {
+		/** @var Hook $hook */
 		$out[] = array(
 			'name'      => $hook->getName(),
-			'line'      => $hook->getLineNumber(),
-			'end_line'  => $hook->getNode()->getAttribute( 'endLine' ),
+			'line'      => $hook->getLocation()->getLineNumber(),
+			'end_line'  => $hook->getEndLocation()->getLineNumber(),
 			'type'      => $hook->getType(),
 			'arguments' => $hook->getArgs(),
 			'doc'       => export_docblock( $hook ),
@@ -255,156 +234,137 @@ function export_hooks( array $hooks ) {
 }
 
 /**
- * @param ArgumentReflector[] $arguments
+ * @param string $directory
  *
  * @return array
  */
-function export_arguments( array $arguments ) {
-	$output = array();
+function get_wp_files( $directory ) {
 
-	foreach ( $arguments as $argument ) {
-		$output[] = array(
-			'name'    => $argument->getName(),
-			'default' => $argument->getDefault(),
-			'type'    => $argument->getType(),
+	if ( ! is_dir( $directory ) ) {
+		throw new \InvalidArgumentException(
+			sprintf( 'Directory [%s] does not exist.', $directory )
 		);
 	}
 
-	return $output;
-}
+	$iterable_files = new \RecursiveIteratorIterator(
+		new \RecursiveDirectoryIterator( $directory )
+	);
 
-/**
- * @param PropertyReflector[] $properties
- *
- * @return array
- */
-function export_properties( array $properties ) {
-	$out = array();
+	$files = array();
 
-	foreach ( $properties as $property ) {
-		$out[] = array(
-			'name'        => $property->getName(),
-			'line'        => $property->getLineNumber(),
-			'end_line'    => $property->getNode()->getAttribute( 'endLine' ),
-			'default'     => $property->getDefault(),
-//			'final' => $property->isFinal(),
-			'static'      => $property->isStatic(),
-			'visibility'  => $property->getVisibility(),
-			'doc'         => export_docblock( $property ),
-		);
-	}
-
-	return $out;
-}
-
-/**
- * @param MethodReflector[] $methods
- *
- * @return array
- */
-function export_methods( array $methods ) {
-	$output = array();
-
-	foreach ( $methods as $method ) {
-
-		$method_data = array(
-			'name'       => $method->getShortName(),
-			'namespace'  => $method->getNamespace(),
-			'aliases'    => $method->getNamespaceAliases(),
-			'line'       => $method->getLineNumber(),
-			'end_line'   => $method->getNode()->getAttribute( 'endLine' ),
-			'final'      => $method->isFinal(),
-			'abstract'   => $method->isAbstract(),
-			'static'     => $method->isStatic(),
-			'visibility' => $method->getVisibility(),
-			'arguments'  => export_arguments( $method->getArguments() ),
-			'doc'        => export_docblock( $method ),
-		);
-
-		if ( ! empty( $method->uses ) ) {
-			$method_data['uses'] = export_uses( $method->uses );
-
-			if ( ! empty( $method->uses['hooks'] ) ) {
-				$method_data['hooks'] = export_hooks( $method->uses['hooks'] );
+	try {
+		foreach ( $iterable_files as $file ) {
+			if ( $file->isFile() && 'php' === $file->getExtension() ) {
+				$files[] = $file->getPathname();
 			}
 		}
-
-		$output[] = $method_data;
+	} catch ( \UnexpectedValueException $exc ) {
+		return new \RuntimeException(
+			sprintf( 'Directory [%s] contained a directory we can not recurse into', $directory )
+		);
 	}
 
-	return $output;
+	return $files;
 }
 
 /**
- * Export the list of elements used by a file or structure.
- *
- * @param array $uses {
- *        @type Function_Call_Reflector[] $functions The functions called.
- * }
+ * @param array  $files
+ * @param string $root
  *
  * @return array
  */
-function export_uses( array $uses ) {
-	$out = array();
+function parse_files( $files, $root ): array {
+	$project_files = array();
 
-	// Ignore hooks here, they are exported separately.
-	unset( $uses['hooks'] );
+	foreach ( $files as $file ) {
+		$project_files[] = new LocalFile( $file );
+	}
 
-	foreach ( $uses as $type => $used_elements ) {
+	$project_factory = ProjectFactory::createInstance();
 
-		/** @var MethodReflector|FunctionReflector $element */
-		foreach ( $used_elements as $element ) {
+	$hook_strategy = new HookStrategy( DocBlockFactory::createInstance() );
 
-			$name = $element->getName();
+	$project_factory->addStrategy( $hook_strategy );
 
-			switch ( $type ) {
-				case 'methods':
-					$out[ $type ][] = array(
-						'name'     => $name[1],
-						'class'    => $name[0],
-						'static'   => $element->isStatic(),
-						'line'     => $element->getLineNumber(),
-						'end_line' => $element->getNode()->getAttribute( 'endLine' ),
-					);
-					break;
+	$project = $project_factory->create( 'WP_Parser', $project_files );
 
-				default:
-				case 'functions':
-					$out[ $type ][] = array(
-						'name'     => $name,
-						'line'     => $element->getLineNumber(),
-						'end_line' => $element->getNode()->getAttribute( 'endLine' ),
-					);
+	$output = array();
 
-					if ( '_deprecated_file' === $name
-						|| '_deprecated_function' === $name
-						|| '_deprecated_argument' === $name
-						|| '_deprecated_hook' === $name
-					) {
-						$arguments = $element->getNode()->args;
+	/** @var \phpDocumentor\Reflection\Php\File $file */
+	foreach ( $project->getFiles() as $file ) {
 
-						$out[ $type ][0]['deprecation_version'] = $arguments[1]->value->value;
-					}
+		$out = array(
+			'file' => export_docblock( $file ),
+			'path' => ltrim( substr( $file->getPath(), strlen( $root ) ), DIRECTORY_SEPARATOR ),
+			'root' => $root,
+		);
 
-					break;
-			}
+		foreach ( $file->getIncludes() as $include ) {
+			$out['includes'][] = array(
+				'name' => $include->getName(),
+				'line' => $include->getLocation()->getLineNumber(),
+				'type' => $include->getType(),
+			);
 		}
-	}
 
-	return $out;
-}
+		/** @var \phpDocument\Reflection\Php\Constant $constant */
+		foreach ( $file->getConstants() as $constant ) {
+			$out['constants'][] = array(
+				'name'  => $constant->getName(),
+				'line'  => $constant->getLocation()->getLineNumber(),
+				'value' => $constant->getValue(),
+			);
+		}
 
-/**
- * Format the given description with Markdown.
- *
- * @param string $description Description.
- * @return string Description as Markdown if the Parsedown class exists, otherwise return
- *                the given description text.
- */
-function format_description( $description ) {
-	if ( class_exists( 'Parsedown' ) ) {
-		$parsedown   = \Parsedown::instance();
-		$description = $parsedown->line( $description );
+		if ( array_key_exists( 'hooks', $file->getMetadata() ) ) {
+			$out['hooks'] = export_hooks( $file->getMetadata()['hooks'] );
+		}
+
+		/** @var \phpDocument\Reflection\Php\Function_ $function */
+		foreach ( $file->getFunctions() as $function ) {
+
+			$namespace = get_namespace( $function->getFqsen() );
+
+			$func = array(
+				'name'      => $function->getName(),
+				'namespace' => $namespace ? $namespace : 'global',
+				'line'      => $function->getLocation()->getLineNumber(),
+				'end_line'  => $function->getEndLocation()->getLineNumber(),
+				'arguments' => export_arguments( $function->getArguments() ),
+				'doc'       => export_docblock( $function ),
+				'hooks'     => array(),
+			);
+
+			$out['functions'][] = $func;
+		}
+
+		/** @var \phpDocument\Reflection\Php\Class_ $class */
+		foreach ( $file->getClasses() as $class ) {
+
+			$parts = explode( '\\', ltrim( $class->getFqsen(), '\\' ) );
+			array_pop( $parts );
+
+			$namespace = implode( '\\', $parts );
+
+			$class_data = array(
+				'name'       => $class->getName(),
+				'namespace'  => $namespace ? $namespace : 'global',
+				'line'       => $class->getLocation()->getLineNumber(),
+				'end_line'   => $class->getEndLocation()->getLineNumber(),
+				'final'      => $class->isFinal(),
+				'abstract'   => $class->isAbstract(),
+				'extends'    => $class->getParent() !== null ? (string) $class->getParent() : '',
+				'implements' => $class->getInterfaces(),
+				'properties' => export_properties( $class->getProperties() ),
+				'methods'    => export_methods( $class->getMethods() ),
+				'doc'        => export_docblock( $class ),
+
+			);
+
+			$out['classes'][] = $class_data;
+		}
+
+		$output[] = $out;
 	}
-	return $description;
+	return $output;
 }

@@ -80,7 +80,7 @@ class Export_Docblocks extends Export_UnitTestCase {
 			'test_func'
 			, array(
 				'description' => 'This is a function docblock.',
-				'long_description' => '<p>This function is just a test, but we\'ve added this description anyway.</p>',
+				'long_description' => 'This function is just a test, but we\'ve added this description anyway.',
 				'tags' => array(
 					array(
 						'name' => 'since',

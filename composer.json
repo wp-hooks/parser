@@ -3,8 +3,14 @@
 	"description": "File scanning and hook parsing functionality from WP Parser.",
 	"keywords"   : ["wordpress"],
 	"homepage"   : "https://github.com/wp-hooks/parser",
-	"license"    : "GPL-2.0-or-later",
+	"type"       : "library",
+	"license"    : "GPL-3.0-or-later",
 	"authors"    : [
+		{
+			"name"    : "otrocodigo",
+			"homepage": "https://github.com/otrocodigo",
+			"role"    : "Developer"
+		},
 		{
 			"name"    : "Ryan McCue",
 			"homepage": "http://ryanmccue.info",
@@ -19,10 +25,8 @@
 		"issues": "https://github.com/wp-hooks/parser/issues"
 	},
 	"require"    : {
-		"php"                      : ">=5.4",
-		"composer/installers"      : "~1.0",
-		"phpdocumentor/reflection" : "~3.0",
-		"erusev/parsedown"         : "~1.7"
+		"php"                      : ">=8.2",
+		"phpdocumentor/reflection" : "~5.3"
 	},
 	"autoload"   : {
 		"classmap": ["lib"],
@@ -32,5 +36,8 @@
 		"allow-plugins": {
 			"composer/installers": true
 		}
+	},
+	"require-dev" : {
+		"yoast/phpunit-polyfills"  : "^2.0"
 	}
 }
