@@ -24,6 +24,9 @@
 		"phpdocumentor/reflection" : "~3.0",
 		"erusev/parsedown"         : "~1.7"
 	},
+	"require-dev" : {
+		"yoast/phpunit-polyfills"  : "^2.0"
+	},
 	"autoload"   : {
 		"classmap": ["lib"],
 		"files"   : ["lib/runner.php"]
